@@ -19,18 +19,18 @@ enum Token {
 
 
 fn lexer(content: &String) -> LinkedList<Token>{
-    let word = Regex::new(r#"^[^<!\\"]+"#).expect("wtf");
+    let word = Regex::new(r#"^[^<!\\"]+"#).unwrap();
     let number = Regex::new(r"^[\d]+").unwrap();
     let boolean = Regex::new(r"^(true)|(false)").unwrap();
-    let whitespace = Regex::new(r"^([\s]+)").expect("wtf");
-    let escaped = Regex::new(r"^(\\.)").expect("wtf");
-    let quote = Regex::new(r#"^""#).expect("wtf");
-    let rbrace = Regex::new("^\\}").expect("wtf");
-    let lbrace = Regex::new("^\\{").expect("wtf");
-    let rbracket = Regex::new("^\\]").expect("wtf");
-    let lbracket = Regex::new("^\\[").expect("wtf");
-    let colon = Regex::new("^:").expect("wtf");
-    let comma = Regex::new("^,").expect("wtf");
+    let whitespace = Regex::new(r"^([\s]+)").unwrap();
+    let escaped = Regex::new(r"^(\\.)").unwrap();
+    let quote = Regex::new(r#"^""#).unwrap();
+    let rbrace = Regex::new("^\\}").unwrap();
+    let lbrace = Regex::new("^\\{").unwrap();
+    let rbracket = Regex::new("^\\]").unwrap();
+    let lbracket = Regex::new("^\\[").unwrap();
+    let colon = Regex::new("^:").unwrap();
+    let comma = Regex::new("^,").unwrap();
     let mut vec: LinkedList<Token> = LinkedList::new();
 
     let mut loc = 0;
@@ -419,7 +419,7 @@ fn delete_path(expr: Expr, key_path: &mut LinkedList<String>) -> Expr{
 
 fn main() {
     let contents = fs::read_to_string("./testing/complex.jsonc").expect("file doesn't exist");
-    //let rbrace = Regex::new("^\\{").expect("wtf");
+    //let rbrace = Regex::new("^\\{").unwrap();
     //println!("contents: {:?}", rbrace.is_match(&contents));
     let mut vec = lexer(&contents);
     //println!("contents: {:?}\n\n", contents);
