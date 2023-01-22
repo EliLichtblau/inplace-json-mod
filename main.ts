@@ -1,7 +1,7 @@
 import { match, P } from 'ts-pattern';
 import {readFileSync} from "fs"
 
-const WORD = /^[^<!"|\s|\n]+/
+const WORD = /^[^<!("|\*\/)|\s|\n]+/
 const WHITESPACE = /^[\s\n]+/
 const NUMBER = /^(([\d]+(?:\.[\d]+)?))(e[\d]+)?/ // this should get all valid floats
 
@@ -264,7 +264,6 @@ function pop_white_space(tokens: Token[]) {
     const ret: string[] = []
     while (assert_token_type(tokens, "WhiteSpace") || assert_token_type(tokens, "LComment") 
             || assert_token_type(tokens, "SComment")) {
-        //ret.push(tokens.shift()?.content || "")
             match(tokens[0])
                 .with({type: "WhiteSpace"}, (t)=>{
                     ret.push(t.content)
@@ -278,13 +277,6 @@ function pop_white_space(tokens: Token[]) {
                 })
                 .otherwise(()=>"")
     }
-    /*return match(tokens[0])
-        .with({type: "WhiteSpace"}, (t) => {
-            tokens.shift()
-            return t.content
-        })
-        .otherwise(()=> "")
-        */
     return ret.join("")
 }
 
@@ -314,6 +306,46 @@ function print(expr: Expression): string {
 }
 
 
+
+function get(expr: Expression, key: string) {
+    return match(expr)
+        .with({type: "Statement"}, (stmt)=> {
+            for (const e of stmt.expressions) {
+                const ret = match(e)
+                    .with({type: "KVPair"}, (kv)=> {
+                        if (kv.key==`"${key}"`) return kv.value
+                        return undefined
+                    })
+                    .otherwise(()=> {return undefined})
+                if (ret) return ret
+            }
+        })
+        .otherwise(()=>{
+            throw Error("Can only execute get on statement expression type")
+        })
+} 
+function deleteKey(expr: Expression, key: string) {
+    return match(expr)
+        .with({type: "Statement"}, (stmt)=> {
+            let i = 0
+            for (const e of stmt.expressions) {
+                const ret = match(e)
+                    .with({type: "KVPair"}, (kv)=> {
+                        if (kv.key==`"${key}"`) return stmt.expressions.splice(i, 1)
+                        return undefined
+                    })
+                    .otherwise(()=> {return undefined})
+                if (ret) return ret
+    
+                i++
+            }
+        })
+        .otherwise(()=>{
+            throw Error("Can only execute get on statement expression type")
+        })
+}
+
+
 function main() {
     const text = readFileSync("testing/simple2.jsonc", {
         encoding: "utf-8"
@@ -326,6 +358,9 @@ function main() {
     const printed = print(p)
     console.log(printed)
     console.log(printed==text)
+    console.log(get(p, "b"))
+    deleteKey(p, "b")
+    console.log(print(p))
 }
 main()
 
