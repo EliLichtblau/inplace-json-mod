@@ -116,7 +116,8 @@ function parse(tokens: Token[]): ArrayExpr | StatementExpr {
         .with({type: P.union("LBrace", "LBracket")}, (t)=>{
             return helper(t.type)
         })
-        .otherwise(()=>{
+        .otherwise((t)=>{
+            // todo: should actually parse arbitrary but I'm lazy so I will write a hack in the addKey
             throw Error("help me")
         })
     // type safe way of specifying types?
@@ -345,6 +346,37 @@ function deleteKey(expr: Expression, key: string) {
         })
 }
 
+type JSONValue =
+    | string
+    | number
+    | boolean
+    | { [x: string]: JSONValue }
+    | Array<JSONValue>;
+function addKey(expr: Expression, key: string, value: JSONValue) {
+    const val = match(value)
+                .with(P.union(P.number, P.boolean), (v)=> {
+                    // always push to top with comma
+                    const ret: ValueExpr = {type: "Value", value: `${value}`, beforeValue:"", afterValue: "", comma: ","}
+                    return ret
+                })
+                .with(P.string, (v)=> {
+                    // always push to top with comma
+                    const ret: ValueExpr = {type: "Value", value: `"${value}"`, beforeValue:"", afterValue: "", comma: ","}
+                    return ret
+                })
+                .otherwise((t)=>{
+                    return parse(lexer(JSON.stringify(t)))
+                })
+    return match(expr)
+            .with({type: "Statement"}, (stmt)=>{
+                const kv: KVPairExpr = {type: "KVPair", beforeKey: "", afterKeyBeforeColon: "", key: `"${key}"`, value: val}
+                stmt.expressions.unshift(kv)
+            }).otherwise(()=>{
+                throw Error("Can only execute addKey on statement expression type")
+            });
+    
+}
+
 
 function main() {
     const text = readFileSync("testing/simple2.jsonc", {
@@ -360,6 +392,8 @@ function main() {
     console.log(printed==text)
     console.log(get(p, "b"))
     deleteKey(p, "b")
+    addKey(p, "newKey", "special")
+    deleteKey(p, "newKey")
     console.log(print(p))
 }
 main()
