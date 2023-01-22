@@ -1,7 +1,7 @@
 import { match, P } from 'ts-pattern';
 import {readFileSync} from "fs"
 
-const WORD = /^[^<!"|\s]+/
+const WORD = /^[^<!"|\s|\n]+/
 const WHITESPACE = /^[\s\n]+/
 const NUMBER = /^(([\d]+(?:\.[\d]+)?))(e[\d]+)?/ // this should get all valid floats
 
@@ -12,6 +12,10 @@ const QUOTE = /^"/
 const LBRACE = /^{/
 const RBRACE = /^}/
 const LBRACKET = /^\[/
+
+const MULTILINE_LCOMMENT = /^\/\*/
+const MULTILINE_RCOMMENT = /^\*\//
+const COMMENT = /^\/\// 
 
 const RBRACKET = /^]/
 const COLON = /^:/
@@ -30,6 +34,9 @@ type Token =
     | {type: "RBrace"; content: string}
     | {type: "Colon"; content: string}
     | {type: "Comma"; content: string}
+    | {type: "LComment"; content: string}
+    | {type: "RComment"; content: string}
+    | {type: "SComment"; content: string}
 
 
 // todo: don't use substring
@@ -70,6 +77,15 @@ function lexer(json: string) {
             loc += m[0].length
         } else if ( (m = json.substring(loc).match(COMMA)) != null ) {
             tokens.push({type: "Comma", content: m[0]})
+            loc += m[0].length
+        } else if ( (m = json.substring(loc).match(MULTILINE_LCOMMENT)) != null ) {
+            tokens.push({type: "LComment", content: m[0]})
+            loc += m[0].length
+        }else if ( (m = json.substring(loc).match(MULTILINE_RCOMMENT)) != null ) {
+            tokens.push({type: "RComment", content: m[0]})
+            loc += m[0].length
+        }else if ( (m = json.substring(loc).match(COMMENT)) != null ) {
+            tokens.push({type: "SComment", content: m[0]})
             loc += m[0].length
         } else if ( (m = json.substring(loc).match(WORD)) != null ) {
             tokens.push({type: "Word", content: m[0]})
@@ -187,6 +203,25 @@ function parse_value(tokens: Token[]): Exclude<Expression, {type: "KVPair"}> {
 }
 
 
+function parse_multi_comment(tokens: Token[]) {
+    if (!assert_token_type(tokens, "LComment")) {
+        console.log(tokens)
+        throw Error("Multiline comment beings with /*")
+    }
+    tokens.shift()
+    const ret: string[] = []
+    while (!assert_token_type(tokens, "RComment")) {
+        match(tokens[0])
+            .with({type: "RComment"}, ()=>{}) //break case
+            .otherwise((w)=>{
+                ret.push(w?.content || "")
+                tokens.shift()
+            })
+    }
+    tokens.shift()
+    return `/*${ret.join("")}*/`
+}
+
 function parse_string(tokens: Token[]) {
     if (!assert_token_type(tokens, "Quote")) {
         console.log(tokens)
@@ -209,13 +244,48 @@ function parse_string(tokens: Token[]) {
 }
 
 
+function parse_line_comment(tokens: Token[]) {
+    if (!assert_token_type(tokens, "SComment")) {
+        throw Error("Expected comment to beign with //")
+    }
+    tokens.shift()
+    const ret: string[] = []
+    while (tokens.length > 0 && tokens[0].content.includes("\n")==false) {
+        ret.push(tokens[0].content)
+        tokens.shift()
+    }
+    return `//${ret.join("")}`
+}
+
 function pop_white_space(tokens: Token[]) {
-    return match(tokens[0])
+    // white space includes all comment varieties
+    // yes this means comments get associated with kv pairs which is silly but 
+    // not worth the effort to fix
+    const ret: string[] = []
+    while (assert_token_type(tokens, "WhiteSpace") || assert_token_type(tokens, "LComment") 
+            || assert_token_type(tokens, "SComment")) {
+        //ret.push(tokens.shift()?.content || "")
+            match(tokens[0])
+                .with({type: "WhiteSpace"}, (t)=>{
+                    ret.push(t.content)
+                    tokens.shift()
+                })
+                .with({type: "SComment"}, (t) => {
+                    ret.push(parse_line_comment(tokens))
+                })
+                .with({type: "LComment"}, (t)=>{
+                    ret.push(parse_multi_comment(tokens))
+                })
+                .otherwise(()=>"")
+    }
+    /*return match(tokens[0])
         .with({type: "WhiteSpace"}, (t) => {
             tokens.shift()
             return t.content
         })
         .otherwise(()=> "")
+        */
+    return ret.join("")
 }
 
 
@@ -245,12 +315,14 @@ function print(expr: Expression): string {
 
 
 function main() {
-    const text = readFileSync("testing/simple.json", {
+    const text = readFileSync("testing/simple2.jsonc", {
         encoding: "utf-8"
     })
 
     const l = lexer(text)
+    console.log(l)
     const p = parse(l)
+    //console.log(p)
     const printed = print(p)
     console.log(printed)
     console.log(printed==text)
